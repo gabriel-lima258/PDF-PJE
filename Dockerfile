@@ -37,7 +37,7 @@ ENV FLASK_APP=api_server.py
 ENV FLASK_ENV=production
 
 # Expor porta
-EXPOSE 5000
+EXPOSE 5001
 
 # Comando para executar a aplicação
 CMD ["python", "api_server.py"] 

@@ -17,13 +17,23 @@ services:
       - ./downloads:/app/downloads
     networks:
       - traefik_network
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.selenium-pdf.rule=Host(`api.seu-dominio.com`)"
-      - "traefik.http.routers.selenium-pdf.entrypoints=websecure"
-      - "traefik.http.routers.selenium-pdf.tls.certresolver=letsencrypt"
-      - "traefik.http.services.selenium-pdf.loadbalancer.server.port=5000"
-      - "traefik.docker.network=traefik_network"
+    deploy:
+      mode: replicated
+      replicas: 3
+      restart_policy:
+        condition: on-failure
+      placement:
+        constraints:
+          - node.role == manager
+      labels:
+        - traefik.enable=true
+        - traefik.http.routers.doc2md.rule=Host(`pdf.sosprecatorios.site`)
+        - traefik.http.routers.doc2md.entrypoints=websecure
+        - traefik.http.routers.doc2md.tls.certresolver=letsencryptresolver
+        - traefik.http.routers.doc2md.priority=1
+        - traefik.http.routers.doc2md.service=doc2md
+        - traefik.http.services.doc2md.loadbalancer.server.port=5001
+        - traefik.http.services.doc2md.loadbalancer.passHostHeader=true
 
 networks:
   traefik_network:
