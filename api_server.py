@@ -77,9 +77,8 @@ def upload_pdf():
         
         if file and allowed_file(file.filename):
             # Gera nome único para o arquivo
-            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
             filename = secure_filename(file.filename)
-            filename = f"{timestamp}_{filename}"
+            filename = f"{filename}"
             
             # Salva o arquivo
             filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)

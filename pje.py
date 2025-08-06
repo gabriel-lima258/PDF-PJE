@@ -14,11 +14,17 @@ from config import *
 
 # 📌 Criar o driver por função (NÃO global)
 def iniciar_driver():
-    options = webdriver.ChromeOptions()
-    options.add_argument("--headless")
-    options.add_argument("--no-sandbox")
-    options.add_argument("--disable-dev-shm-usage")
-    return webdriver.Chrome(options=options)
+    chrome_options = webdriver.ChromeOptions()
+    chrome_options.add_argument("--headless=new")
+    chrome_options.add_argument("--no-sandbox")
+    chrome_options.add_argument("--disable-dev-shm-usage")
+    chrome_options.add_argument("--disable-gpu")
+    chrome_options.add_argument("--window-size=1920,1080")
+    chrome_options.add_experimental_option("prefs", CHROME_OPTIONS)
+    chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
+    chrome_options.add_experimental_option('useAutomationExtension', False)
+
+    return webdriver.Chrome(options=chrome_options)
 
 def criar_diretorio_downloads():
     if not os.path.exists(DOWNLOAD_DIR):
