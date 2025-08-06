@@ -12,6 +12,9 @@ app = Flask(__name__)
 UPLOAD_FOLDER = 'pdfs'
 ALLOWED_EXTENSIONS = {'pdf'}
 
+# Sistema de status para scraper
+scraper_status = {}
+
 # Cria o diretório se não existir
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
@@ -22,18 +25,130 @@ app.config['MAX_CONTENT_LENGTH'] = 400 * 1024 * 1024  # 50MB max
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
+def run_scraper_with_status(cpf):
+    """
+    Executa o scraper e atualiza o status
+    """
+    job_id = f"{cpf}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    
+    # Inicializa o status
+    scraper_status[job_id] = {
+        'cpf': cpf,
+        'status': 'running',
+        'start_time': datetime.now().isoformat(),
+        'end_time': None,
+        'result': None,
+        'error': None,
+        'progress': 'Iniciando scraper...'
+    }
+    
+    try:
+        print(f"🚀 Iniciando scraper para CPF: {cpf} (Job ID: {job_id})")
+        scraper_status[job_id]['progress'] = 'Executando login...'
+        
+        # Executa o scraper
+        result = executar_scraper(cpf)
+        
+        # Atualiza status com sucesso
+        scraper_status[job_id].update({
+            'status': 'completed',
+            'end_time': datetime.now().isoformat(),
+            'result': result,
+            'progress': 'Scraper concluído com sucesso'
+        })
+        
+        print(f"✅ Scraper concluído para CPF: {cpf} (Job ID: {job_id})")
+        
+    except Exception as e:
+        # Atualiza status com erro
+        scraper_status[job_id].update({
+            'status': 'error',
+            'end_time': datetime.now().isoformat(),
+            'error': str(e),
+            'progress': f'Erro: {str(e)}'
+        })
+        
+        print(f"❌ Erro no scraper para CPF: {cpf} (Job ID: {job_id}): {e}")
+
 @app.route('/executar-scraper', methods=['GET'])
 def executar_scraper_route():
     cpf = request.args.get('cpf')
     if not cpf:
         return jsonify({'error': 'CPF não fornecido'}), 400
 
-    def run_scraper():
-        executar_scraper(cpf)
+    # Inicia o scraper em thread separada
+    Thread(target=run_scraper_with_status, args=(cpf,)).start()
 
-    Thread(target=run_scraper).start()
+    # Retorna o job_id para acompanhamento
+    job_id = f"{cpf}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    
+    return jsonify({
+        'message': f'Scraper iniciado para CPF: {cpf}',
+        'job_id': job_id,
+        'status_url': f'/scraper-status/{job_id}'
+    }), 202
 
-    return jsonify({'message': f'Scraper iniciado para CPF: {cpf}'}), 202
+@app.route('/scraper-status/<job_id>', methods=['GET'])
+def scraper_status_route(job_id):
+    """
+    Verifica o status de uma execução do scraper
+    """
+    if job_id not in scraper_status:
+        return jsonify({'error': 'Job ID não encontrado'}), 404
+    
+    status = scraper_status[job_id]
+    
+    # Calcula duração se já terminou
+    duration = None
+    if status['end_time']:
+        start_time = datetime.fromisoformat(status['start_time'])
+        end_time = datetime.fromisoformat(status['end_time'])
+        duration = (end_time - start_time).total_seconds()
+    
+    response = {
+        'job_id': job_id,
+        'cpf': status['cpf'],
+        'status': status['status'],
+        'start_time': status['start_time'],
+        'end_time': status['end_time'],
+        'duration_seconds': duration,
+        'progress': status['progress']
+    }
+    
+    # Adiciona resultado ou erro conforme o status
+    if status['status'] == 'completed':
+        response['result'] = status['result']
+    elif status['status'] == 'error':
+        response['error'] = status['error']
+    
+    return jsonify(response), 200
+
+@app.route('/scraper-status', methods=['GET'])
+def list_scraper_status():
+    """
+    Lista todos os status de scraper
+    """
+    cpf_filter = request.args.get('cpf')
+    status_filter = request.args.get('status')
+    
+    filtered_status = {}
+    
+    for job_id, status in scraper_status.items():
+        # Filtra por CPF se especificado
+        if cpf_filter and status['cpf'] != cpf_filter:
+            continue
+            
+        # Filtra por status se especificado
+        if status_filter and status['status'] != status_filter:
+            continue
+            
+        filtered_status[job_id] = status
+    
+    return jsonify({
+        'total_jobs': len(scraper_status),
+        'filtered_jobs': len(filtered_status),
+        'jobs': filtered_status
+    }), 200
 
 @app.route('/download/<filename>', methods=['GET'])
 def download_pdf(filename):
@@ -219,5 +334,8 @@ if __name__ == '__main__':
     print("📥 Download individual: http://localhost:5000/download/<filename>")
     print("📦 Download múltiplo: POST http://localhost:5000/download-multiple")
     print("💚 Health check: http://localhost:5000/health")
+    print("🔄 Executar scraper: GET http://localhost:5000/executar-scraper?cpf=<CPF>")
+    print("📊 Status do scraper: GET http://localhost:5000/scraper-status/<job_id>")
+    print("📋 Lista de status: GET http://localhost:5000/scraper-status")
     
     app.run(debug=True, host='0.0.0.0', port=5000) 

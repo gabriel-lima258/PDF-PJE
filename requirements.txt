@@ -11,9 +11,3 @@ requests==2.31.0
 
 # Environment variables
 python-dotenv==1.0.0
-
-# Production server (opcional - para usar gunicorn)
-gunicorn==21.2.0
-
-# Development (remover em produção)
-ipykernel==6.27.1
