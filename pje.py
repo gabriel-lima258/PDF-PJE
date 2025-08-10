@@ -1,8 +1,12 @@
 from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
+from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options as ChromeOptions
 from datetime import datetime
 from time import sleep
 import requests
@@ -23,8 +27,21 @@ def iniciar_driver():
     chrome_options.add_experimental_option("prefs", CHROME_OPTIONS)
     chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
     chrome_options.add_experimental_option('useAutomationExtension', False)
+    return webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
+    # options = ChromeOptions()
+    # options.browser_version = "latest"
+    # options.set_capability("browserName", "chrome")
+    # options.set_capability(
+    #     "selenoid:options", {
+    #         "enableVNC": True,
+    #     }
+    # )
 
-    return webdriver.Chrome(options=chrome_options)
+    # # Conectar ao Selenoid
+    # return webdriver.Remote(
+    #     command_executor="http://localhost:4444/wd/hub",
+    #     options=options 
+    # )
 
 def criar_diretorio_downloads():
     if not os.path.exists(DOWNLOAD_DIR):

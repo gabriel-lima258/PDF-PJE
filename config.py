@@ -23,14 +23,16 @@ FLASK_DEBUG = os.getenv("FLASK_DEBUG", "True").lower() == "true"
 # Configurações do Chrome
 CHROME_OPTIONS = {
     "download.default_directory": DOWNLOAD_DIR,
+    "profile.default_content_settings.popups": 0,
     "download.prompt_for_download": False,
     "download.directory_upgrade": True,
-    "safebrowsing.enabled": True,
+    "safebrowsing.enabled": False,
     "download.open_pdf_in_system_reader": False,
     "plugins.always_open_pdf_externally": True,
     "profile.default_content_setting_values.automatic_downloads": 1
 }
 
 # Timeouts
-DOWNLOAD_TIMEOUT = 45  # segundos
+DOWNLOAD_TIMEOUT = 140  # segundos
 WEBDRIVER_WAIT = 10   # segundos 
+
