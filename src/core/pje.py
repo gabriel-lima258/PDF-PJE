@@ -13,9 +13,71 @@ import os
 sys.path.append(os.path.join(os.path.dirname(__file__)))
 from config import *
 
+# Sistema de logs para interface web
+class WebLogger:
+    def __init__(self, consulta_id):
+        self.consulta_id = consulta_id
+        self.logs = []
+        self.status = "iniciando"
+        self.progress = 0
+        self.total_processos = 0
+        self.processos_encontrados = 0
+        self.downloads_concluidos = 0
+        self.erros = []
+        
+    def log(self, message, tipo="info"):
+        """Adiciona log com timestamp"""
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        log_entry = {
+            "timestamp": timestamp,
+            "message": message,
+            "tipo": tipo
+        }
+        self.logs.append(log_entry)
+        print(f"[{timestamp}] {message}")
+        
+    def update_status(self, status, progress=None):
+        """Atualiza status e progresso"""
+        self.status = status
+        if progress is not None:
+            self.progress = progress
+            
+    def add_error(self, error):
+        """Adiciona erro à lista"""
+        self.erros.append(error)
+        self.log(f"❌ Erro: {error}", "error")
+        
+    def get_summary(self):
+        """Retorna resumo da execução"""
+        return {
+            "status": self.status,
+            "progress": self.progress,
+            "total_processos": self.total_processos,
+            "processos_encontrados": self.processos_encontrados,
+            "downloads_concluidos": self.downloads_concluidos,
+            "erros": len(self.erros),
+            "logs": self.logs[-20:]  # Últimos 20 logs
+        }
+
+# Variável global para armazenar loggers ativos
+active_loggers = {}
+
+def get_logger(consulta_id):
+    """Obtém logger para uma consulta específica"""
+    if consulta_id not in active_loggers:
+        active_loggers[consulta_id] = WebLogger(consulta_id)
+    return active_loggers[consulta_id]
+
+def remove_logger(consulta_id):
+    """Remove logger após conclusão"""
+    if consulta_id in active_loggers:
+        del active_loggers[consulta_id]
 
 # 📌 Criar o driver por função (NÃO global)
-def iniciar_driver(download_dir=None):
+def iniciar_driver(download_dir=None, logger=None):
+    if logger:
+        logger.log("🚀 Iniciando navegador Chrome...", "info")
+    
     chrome_options = webdriver.ChromeOptions()
     # chrome_options.add_argument("--headless=new")
     chrome_options.add_argument("--no-sandbox")
@@ -28,14 +90,20 @@ def iniciar_driver(download_dir=None):
         chrome_prefs = CHROME_OPTIONS.copy()
         chrome_prefs["download.default_directory"] = download_dir
         chrome_options.add_experimental_option("prefs", chrome_prefs)
+        if logger:
+            logger.log(f"📁 Diretório de download configurado: {download_dir}", "info")
     else:
         chrome_options.add_experimental_option("prefs", CHROME_OPTIONS)
     
     chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
     chrome_options.add_experimental_option('useAutomationExtension', False)
+    
+    if logger:
+        logger.log("✅ Navegador Chrome iniciado com sucesso", "success")
+    
     return webdriver.Chrome(options=chrome_options)
 
-def criar_diretorio_downloads(nome_pessoa=None):
+def criar_diretorio_downloads(nome_pessoa=None, logger=None):
     """Cria diretório de downloads, opcionalmente com pasta personalizada para a pessoa"""
     if nome_pessoa:
         # Criar pasta personalizada no desktop
@@ -45,37 +113,55 @@ def criar_diretorio_downloads(nome_pessoa=None):
         
         if not os.path.exists(pasta_pessoa):
             os.makedirs(pasta_pessoa)
-            print(f"📁 Pasta criada no desktop: {pasta_pessoa}")
+            if logger:
+                logger.log(f"📁 Pasta criada no desktop: {pasta_pessoa}", "success")
+        else:
+            if logger:
+                logger.log(f"📁 Pasta já existe: {pasta_pessoa}", "info")
         
         return pasta_pessoa
     else:
         # Usar diretório padrão
         if not os.path.exists(DOWNLOAD_DIR):
             os.makedirs(DOWNLOAD_DIR)
-            print(f"📁 Diretório criado: {DOWNLOAD_DIR}")
+            if logger:
+                logger.log(f"📁 Diretório criado: {DOWNLOAD_DIR}", "info")
         return DOWNLOAD_DIR
 
-def login(driver):
+def login(driver, logger=None):
+    if logger:
+        logger.log("🔐 Iniciando processo de login...", "info")
+        logger.update_status("fazendo_login", 10)
+    
     wait = WebDriverWait(driver, WEBDRIVER_WAIT)
 
-    wait.until(EC.presence_of_element_located((By.ID, "botaoRedirecionarSSO"))).click()
+    try:
+        wait.until(EC.presence_of_element_located((By.ID, "botaoRedirecionarSSO"))).click()
+        if logger:
+            logger.log("✅ Botão SSO clicado", "success")
 
-    # iframe = wait.until(EC.presence_of_element_located((By.TAG_NAME, "iframe")))
-    # driver.switch_to.frame(iframe)
+        wait.until(EC.presence_of_element_located((By.ID, "username"))).send_keys(PJE_USER)
+        sleep(3)
+        wait.until(EC.presence_of_element_located((By.ID, "password"))).send_keys(PJE_PASSWORD)
+        wait.until(EC.element_to_be_clickable((By.ID, "kc-login"))).click()
 
-    wait.until(EC.presence_of_element_located((By.ID, "username"))).send_keys(PJE_USER)
-    sleep(3)
-    wait.until(EC.presence_of_element_located((By.ID, "password"))).send_keys(PJE_PASSWORD)
-    wait.until(EC.element_to_be_clickable((By.ID, "kc-login"))).click()
+        sleep(3)
+        
+        if logger:
+            logger.log("✅ Login realizado com sucesso", "success")
+            logger.update_status("login_concluido", 20)
+            
+    except Exception as e:
+        if logger:
+            logger.add_error(f"Falha no login: {str(e)}")
+        raise e
 
-    # driver.switch_to.default_content()
-    sleep(3)
-
-def wait_for_download_and_upload(download_dir, timeout, processo_info=None):
+def wait_for_download_and_upload(download_dir, timeout, processo_info=None, logger=None):
     initial_files = set(glob.glob(os.path.join(download_dir, "*.pdf")))
     start_time = datetime.now()
     
-    print(f"📁 Aguardando downloads em: {download_dir}")
+    if logger:
+        logger.log(f"📁 Aguardando downloads em: {download_dir}", "info")
 
     while (datetime.now() - start_time).seconds < timeout:
         current_files = set(glob.glob(os.path.join(download_dir, "*.pdf")))
@@ -85,8 +171,9 @@ def wait_for_download_and_upload(download_dir, timeout, processo_info=None):
             sleep(2)
             for file_path in new_files:
                 if os.path.exists(file_path) and os.path.getsize(file_path) > 0:
-                    print(f"📄 PDF baixado: {os.path.basename(file_path)}")
-                    print(f"📍 Localização: {file_path}")
+                    if logger:
+                        logger.log(f"📄 PDF baixado: {os.path.basename(file_path)}", "success")
+                        logger.log(f"📍 Localização: {file_path}", "info")
 
                     return {
                         "arquivo": os.path.basename(file_path),
@@ -96,13 +183,18 @@ def wait_for_download_and_upload(download_dir, timeout, processo_info=None):
 
         sleep(1)
 
-    print(f"⏰ Timeout aguardando download em: {download_dir}")
+    if logger:
+        logger.log(f"⏰ Timeout aguardando download em: {download_dir}", "warning")
     return None
 
-def aguardar_todos_downloads(driver, download_dir, cpf):
+def aguardar_todos_downloads(driver, download_dir, cpf, logger=None):
     """Aguarda todos os downloads com timeout inteligente"""
     num_abas = len(driver.window_handles) - 1  # Excluir aba principal
-    print(f"📊 Aguardando {num_abas} downloads...")
+    
+    if logger:
+        logger.log(f"📊 Aguardando {num_abas} downloads...", "info")
+        logger.update_status("aguardando_downloads", 70)
+        logger.total_processos = num_abas
     
     resultados = []
     downloads_concluidos = 0
@@ -120,8 +212,13 @@ def aguardar_todos_downloads(driver, download_dir, cpf):
                 
                 if not arquivo_ja_processado:
                     downloads_concluidos += 1
-                    print(f"📄 PDF {downloads_concluidos}/{num_abas} baixado: {os.path.basename(file_path)}")
-                    print(f"📍 Localização: {file_path}")
+                    
+                    if logger:
+                        logger.log(f"📄 PDF {downloads_concluidos}/{num_abas} baixado: {os.path.basename(file_path)}", "success")
+                        logger.log(f"📍 Localização: {file_path}", "info")
+                        logger.downloads_concluidos = downloads_concluidos
+                        progress = 70 + (downloads_concluidos / num_abas) * 25
+                        logger.update_status("baixando_pdfs", progress)
                     
                     info = {
                         "numero_processo": f"Processo {downloads_concluidos}",
@@ -138,7 +235,8 @@ def aguardar_todos_downloads(driver, download_dir, cpf):
         # Verificar timeout total
         elapsed_time = (datetime.now() - start_time).total_seconds()
         if elapsed_time > timeout_total:
-            print(f"⏰ Timeout total atingido ({timeout_total}s). Encerrando downloads.")
+            if logger:
+                logger.log(f"⏰ Timeout total atingido ({timeout_total}s). Encerrando downloads.", "warning")
             break
         
         # Aguardar um pouco antes de verificar novamente
@@ -146,103 +244,187 @@ def aguardar_todos_downloads(driver, download_dir, cpf):
         
         # Mostrar progresso a cada 10 segundos
         if int(elapsed_time) % 10 == 0 and elapsed_time > 0:
-            print(f"⏱️  Progresso: {downloads_concluidos}/{num_abas} downloads concluídos ({elapsed_time:.0f}s)")
+            if logger:
+                logger.log(f"⏱️  Progresso: {downloads_concluidos}/{num_abas} downloads concluídos ({elapsed_time:.0f}s)", "info")
     
-    print(f"✅ Downloads concluídos: {downloads_concluidos}/{num_abas}")
+    if logger:
+        logger.log(f"✅ Downloads concluídos: {downloads_concluidos}/{num_abas}", "success")
+        logger.update_status("concluido", 100)
+    
     return resultados
 
-def buscar_processo(driver, cpf, download_dir):
+def buscar_processo(driver, cpf, download_dir, logger=None):
+    if logger:
+        logger.log("🔍 Iniciando busca de processos...", "info")
+        logger.update_status("buscando_processos", 30)
+    
     wait = WebDriverWait(driver, WEBDRIVER_WAIT)
     driver.get("https://pje1g.trf1.jus.br/pje/Processo/ConsultaProcesso/listView.seam")
 
-    campo_cpf = wait.until(EC.presence_of_element_located((By.ID, "fPP:dpDec:documentoParte")))
-    campo_cpf.clear()
-    campo_cpf.send_keys(cpf)
+    try:
+        campo_cpf = wait.until(EC.presence_of_element_located((By.ID, "fPP:dpDec:documentoParte")))
+        campo_cpf.clear()
+        campo_cpf.send_keys(cpf)
+        
+        if logger:
+            logger.log(f"📝 CPF inserido: {cpf}", "info")
 
-    campo_classe = wait.until(EC.presence_of_element_located((By.ID, "fPP:j_id256:classeJudicial")))
-    campo_classe.send_keys("CUMPRIMENTO DE SENTENÇA")
-    campo_classe.send_keys(Keys.ENTER)
+        campo_classe = wait.until(EC.presence_of_element_located((By.ID, "fPP:j_id256:classeJudicial")))
+        campo_classe.send_keys("CUMPRIMENTO DE SENTENÇA")
+        campo_classe.send_keys(Keys.ENTER)
+        
+        if logger:
+            logger.log("🔍 Buscando processos de 'CUMPRIMENTO DE SENTENÇA'...", "info")
 
-    WebDriverWait(driver, 10).until(
-        EC.presence_of_element_located((By.XPATH, '//a[contains(@class, "btn-link") and contains(@class, "btn-condensed")]'))
-    )
+        WebDriverWait(driver, 10).until(
+            EC.presence_of_element_located((By.XPATH, '//a[contains(@class, "btn-link") and contains(@class, "btn-condensed")]'))
+        )
 
-    botoes = driver.find_elements(By.XPATH, '//a[contains(@class, "btn-link") and contains(@class, "btn-condensed")]')
-    print(f"🔍 {len(botoes)} processos encontrados.")
+        botoes = driver.find_elements(By.XPATH, '//a[contains(@class, "btn-link") and contains(@class, "btn-condensed")]')
+        
+        if logger:
+            logger.log(f"🔍 {len(botoes)} processos encontrados.", "success")
+            logger.processos_encontrados = len(botoes)
+            logger.update_status("processos_encontrados", 40)
 
-    # 🔄 Abrir todas as abas
-    for i, botao in enumerate(botoes):
-        try:
-            driver.execute_script("arguments[0].scrollIntoView();", botao)
-            sleep(0.5)
-            botao.click()
-            WebDriverWait(driver, 5).until(EC.alert_is_present()).accept()
-        except Exception as e:
-            print(f"❌ Erro ao abrir aba {i+1}: {e}")
+        # 🔄 Abrir todas as abas
+        if logger:
+            logger.log("🔄 Abrindo processos em novas abas...", "info")
+            logger.update_status("abrindo_abas", 50)
+        
+        for i, botao in enumerate(botoes):
+            try:
+                driver.execute_script("arguments[0].scrollIntoView();", botao)
+                sleep(0.5)
+                botao.click()
+                WebDriverWait(driver, 5).until(EC.alert_is_present()).accept()
+                
+                if logger:
+                    logger.log(f"✅ Aba {i+1} aberta com sucesso", "success")
+                    
+            except Exception as e:
+                if logger:
+                    logger.add_error(f"Erro ao abrir aba {i+1}: {e}")
+                else:
+                    print(f"❌ Erro ao abrir aba {i+1}: {e}")
 
-    resultados = []
+        resultados = []
 
-    # ⏬ Ativar todos os downloads nas abas
-    for i in range(1, len(driver.window_handles)):
-        try:
-            driver.switch_to.window(driver.window_handles[i])
-            print(f"🗂️ Acessando aba {i}")
+        # ⏬ Ativar todos os downloads nas abas
+        if logger:
+            logger.log("⏬ Iniciando downloads dos processos...", "info")
+            logger.update_status("iniciando_downloads", 60)
+        
+        for i in range(1, len(driver.window_handles)):
+            try:
+                driver.switch_to.window(driver.window_handles[i])
+                
+                if logger:
+                    logger.log(f"🗂️ Acessando aba {i} para download", "info")
 
-            WebDriverWait(driver, 10).until(
-                EC.element_to_be_clickable((By.XPATH, '//a[contains(@class, "btn-menu-abas")]'))
-            ).click()
+                WebDriverWait(driver, 10).until(
+                    EC.element_to_be_clickable((By.XPATH, '//a[contains(@class, "btn-menu-abas")]'))
+                ).click()
 
-            botao_download = WebDriverWait(driver, 10).until(
-                EC.visibility_of_element_located((By.ID, "navbar:downloadProcesso"))
-            )
-            driver.execute_script("arguments[0].scrollIntoView(true);", botao_download)
-            sleep(0.5)
-            botao_download.click()
+                botao_download = WebDriverWait(driver, 10).until(
+                    EC.visibility_of_element_located((By.ID, "navbar:downloadProcesso"))
+                )
+                driver.execute_script("arguments[0].scrollIntoView(true);", botao_download)
+                sleep(0.5)
+                botao_download.click()
 
-            WebDriverWait(driver, 5).until(EC.alert_is_present()).accept()
+                WebDriverWait(driver, 5).until(EC.alert_is_present()).accept()
+                
+                if logger:
+                    logger.log(f"✅ Download iniciado na aba {i}", "success")
 
-        except Exception as e:
-            print(f"❌ Erro na aba {i}: {e}")
+            except Exception as e:
+                if logger:
+                    logger.add_error(f"Erro na aba {i}: {e}")
+                else:
+                    print(f"❌ Erro na aba {i}: {e}")
 
-    print(f"⏳ Aguardando downloads na pasta: {download_dir}")
+        if logger:
+            logger.log(f"⏳ Aguardando downloads na pasta: {download_dir}", "info")
 
-    # 📥 Aguardar todos os downloads com timeout inteligente
-    resultados = aguardar_todos_downloads(driver, download_dir, cpf)
+        # 📥 Aguardar todos os downloads com timeout inteligente
+        resultados = aguardar_todos_downloads(driver, download_dir, cpf, logger)
 
-    # 🧹 Fechar abas extras
-    for i in range(1, len(driver.window_handles)):
-        try:
-            driver.switch_to.window(driver.window_handles[i])
-            driver.close()
-        except:
-            pass
+        # 🧹 Fechar abas extras
+        if logger:
+            logger.log("🧹 Fechando abas extras...", "info")
+        
+        for i in range(1, len(driver.window_handles)):
+            try:
+                driver.switch_to.window(driver.window_handles[i])
+                driver.close()
+            except:
+                pass
 
-    driver.switch_to.window(driver.window_handles[0])
-    return resultados
+        driver.switch_to.window(driver.window_handles[0])
+        
+        if logger:
+            logger.log(f"✅ Busca concluída. {len(resultados)} arquivos baixados.", "success")
+        
+        return resultados
+        
+    except Exception as e:
+        if logger:
+            logger.add_error(f"Erro durante busca: {e}")
+        raise e
 
-def executar_scraper(nome: str, cpf: str):
-    download_dir = criar_diretorio_downloads(nome)
-    driver = iniciar_driver(download_dir)
+def executar_scraper(nome: str, cpf: str, consulta_id: str = None):
+    logger = get_logger(consulta_id) if consulta_id else None
+    
+    if logger:
+        logger.log(f"🚀 Iniciando scraper para: {nome} (CPF: {cpf})", "info")
+        logger.update_status("iniciando", 0)
+    
+    download_dir = criar_diretorio_downloads(nome, logger)
+    driver = iniciar_driver(download_dir, logger)
     driver.get("https://pje1g.trf1.jus.br/pje")
     sleep(2)
 
     try:
-        print("🔐 Fazendo login no PJE...")
-        login(driver)
-        print("🔍 Iniciando busca de processos...")
-        resultados = buscar_processo(driver, cpf, download_dir)
-        print(f"✅ Busca concluída. {len(resultados)} arquivos baixados.")
+        if logger:
+            logger.log("🔐 Fazendo login no PJE...", "info")
+        login(driver, logger)
+        
+        if logger:
+            logger.log("🔍 Iniciando busca de processos...", "info")
+        resultados = buscar_processo(driver, cpf, download_dir, logger)
+        
+        if logger:
+            logger.log(f"✅ Busca concluída. {len(resultados)} arquivos baixados.", "success")
+            logger.update_status("concluido", 100)
+        
         return resultados
+        
     except Exception as e:
-        print(f"❌ Erro durante a execução: {e}")
+        if logger:
+            logger.add_error(f"Erro durante a execução: {e}")
+            logger.update_status("erro", 0)
+        else:
+            print(f"❌ Erro durante a execução: {e}")
         return []
+        
     finally:
-        print("🔄 Fechando navegador...")
+        if logger:
+            logger.log("🔄 Fechando navegador...", "info")
+        else:
+            print("🔄 Fechando navegador...")
+            
         try:
             driver.quit()
-            print("✅ Navegador fechado com sucesso.")
+            if logger:
+                logger.log("✅ Navegador fechado com sucesso.", "success")
+            else:
+                print("✅ Navegador fechado com sucesso.")
         except Exception as e:
-            print(f"⚠️  Erro ao fechar navegador: {e}")
+            if logger:
+                logger.add_error(f"Erro ao fechar navegador: {e}")
+            else:
+                print(f"⚠️  Erro ao fechar navegador: {e}")
 
 if __name__ == "__main__":
     executar_scraper("João Silva", "03575438749")

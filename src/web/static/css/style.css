@@ -203,31 +203,76 @@ body {
     padding: 0.25rem 0;
     border-radius: 4px;
     transition: background-color 0.2s ease;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
 }
 
 .log-entry:hover {
     background-color: rgba(255, 255, 255, 0.05);
 }
 
-.log-entry.success {
+.log-timestamp {
+    color: #64748b;
+    font-weight: 600;
+    min-width: 80px;
+    flex-shrink: 0;
+}
+
+.log-message {
+    flex: 1;
+    word-break: break-word;
+}
+
+.log-success {
     color: #10b981;
 }
 
-.log-entry.error {
+.log-error {
     color: #ef4444;
 }
 
-.log-entry.warning {
+.log-warning {
     color: #f59e0b;
 }
 
-.log-entry.info {
+.log-info {
     color: #06b6d4;
 }
 
-.timestamp {
-    color: #64748b;
-    font-weight: 600;
+/* ===== STATISTICS ===== */
+.stat-item {
+    padding: 0.5rem;
+}
+
+.stat-item h6 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin-bottom: 0.25rem;
+}
+
+.stat-card {
+    transition: transform 0.2s ease;
+}
+
+.stat-card:hover {
+    transform: translateY(-2px);
+}
+
+/* ===== PROGRESS BAR ===== */
+#progressContainer {
+    background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+}
+
+.progress {
+    background-color: rgba(0, 0, 0, 0.1);
+    border-radius: 10px;
+}
+
+.progress-bar {
+    background: linear-gradient(90deg, var(--primary-color) 0%, var(--info-color) 100%);
+    border-radius: 10px;
+    transition: width 0.3s ease;
 }
 
 /* ===== HISTORY SECTION ===== */
