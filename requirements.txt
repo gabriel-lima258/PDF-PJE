@@ -2,22 +2,8 @@
 selenium==4.15.2
 webdriver-manager==4.0.1
 
-# Web framework
-flask==3.0.0
-werkzeug==3.0.1
-
 # HTTP requests
 requests==2.31.0
 
 # Environment variables
 python-dotenv==1.0.0
-
-# Voice recognition
-SpeechRecognition
-
-# Text-to-speech
-gTTS
-
-# Sound playback
-playsound==1.2.2
-Pyaudio
