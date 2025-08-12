@@ -79,7 +79,7 @@ def iniciar_driver(download_dir=None, logger=None):
         logger.log("🚀 Iniciando navegador Chrome...", "info")
     
     chrome_options = webdriver.ChromeOptions()
-    # chrome_options.add_argument("--headless=new")
+    #chrome_options.add_argument("--headless=new")
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
     chrome_options.add_argument("--disable-gpu")

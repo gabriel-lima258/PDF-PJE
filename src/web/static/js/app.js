@@ -11,6 +11,7 @@ class ScraperPJEApp {
     init() {
         this.bindEvents();
         this.loadHistorico();
+        this.initTheme();
         this.log('Aplicação iniciada', 'info');
     }
 
@@ -35,6 +36,9 @@ class ScraperPJEApp {
         
         // Formatação automática do CPF
         document.getElementById('cpf').addEventListener('input', (e) => this.formatarCPF(e.target));
+        
+        // Toggle do tema
+        document.getElementById('themeToggle').addEventListener('click', () => this.toggleTheme());
     }
 
     formatarCPF(input) {
@@ -137,9 +141,87 @@ class ScraperPJEApp {
     }
 
     showStatusConsulta() {
-        document.getElementById('statusConsulta').style.display = 'block';
+        const statusDiv = document.getElementById('statusConsulta');
+        statusDiv.style.display = 'block';
+        
+        // Inicializar área de logs de forma suave
+        this.inicializarAreaLogs();
+        
+        // Atualizar conteúdo com progresso dinâmico
+        statusDiv.innerHTML = `
+            <div class="alert alert-info border-0">
+                <div class="d-flex align-items-center mb-3">
+                    <div class="spinner-border spinner-border-sm me-3" role="status">
+                        <span class="visually-hidden">Carregando...</span>
+                    </div>
+                    <div class="flex-grow-1">
+                        <h6 class="mb-1">Consulta em Andamento</h6>
+                        <div id="statusText" class="text-muted">Iniciando sistema...</div>
+                    </div>
+                    <div class="text-end">
+                        <div id="tempoEstimado" class="text-muted small">Calculando...</div>
+                        <div id="progressoNumerico" class="fw-bold">0%</div>
+                    </div>
+                </div>
+                
+                <!-- Progress Bar Principal -->
+                <div class="progress mb-3" style="height: 8px;">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated bg-primary" 
+                         id="progressBar" role="progressbar" style="width: 0%"></div>
+                </div>
+                
+                <!-- Etapas do Progresso -->
+                <div id="etapasProgresso" class="row g-2">
+                    <div class="col-3">
+                        <div class="etapa-item" data-etapa="1">
+                            <div class="etapa-icon bg-secondary text-white rounded-circle d-inline-flex align-items-center justify-content-center" style="width: 30px; height: 30px;">
+                                <i class="fas fa-cog fa-sm"></i>
+                            </div>
+                            <div class="etapa-text small mt-1">Iniciando</div>
+                        </div>
+                    </div>
+                    <div class="col-3">
+                        <div class="etapa-item" data-etapa="2">
+                            <div class="etapa-icon bg-secondary text-white rounded-circle d-inline-flex align-items-center justify-content-center" style="width: 30px; height: 30px;">
+                                <i class="fas fa-sign-in-alt fa-sm"></i>
+                            </div>
+                            <div class="etapa-text small mt-1">Login</div>
+                        </div>
+                    </div>
+                    <div class="col-3">
+                        <div class="etapa-item" data-etapa="3">
+                            <div class="etapa-icon bg-secondary text-white rounded-circle d-inline-flex align-items-center justify-content-center" style="width: 30px; height: 30px;">
+                                <i class="fas fa-search fa-sm"></i>
+                            </div>
+                            <div class="etapa-text small mt-1">Buscando</div>
+                        </div>
+                    </div>
+                    <div class="col-3">
+                        <div class="etapa-item" data-etapa="4">
+                            <div class="etapa-icon bg-secondary text-white rounded-circle d-inline-flex align-items-center justify-content-center" style="width: 30px; height: 30px;">
+                                <i class="fas fa-download fa-sm"></i>
+                            </div>
+                            <div class="etapa-text small mt-1">Baixando</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
         document.getElementById('iniciarBtn').disabled = true;
         document.getElementById('iniciarBtn').innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Consulta em Andamento...';
+    }
+
+    inicializarAreaLogs() {
+        const logArea = document.getElementById('logArea');
+        if (logArea) {
+            logArea.innerHTML = `
+                <div class="text-muted text-center py-4 animate__animated animate__fadeIn">
+                    <i class="fas fa-info-circle me-2"></i>
+                    Aguardando início da consulta...
+                </div>
+            `;
+        }
     }
 
     hideStatusConsulta() {
@@ -167,12 +249,80 @@ class ScraperPJEApp {
                         this.log(`Consulta falhou: ${data.progress}`, 'error');
                     }
                 } else {
-                    document.getElementById('statusText').textContent = data.progress;
+                    this.atualizarProgressoDinamico(data);
                 }
             } catch (error) {
                 this.log(`Erro ao monitorar status: ${error.message}`, 'error');
             }
         }, 2000);
+    }
+
+    atualizarProgressoDinamico(data) {
+        // Atualizar texto de status
+        const statusText = document.getElementById('statusText');
+        if (statusText) {
+            statusText.textContent = data.progress || 'Processando...';
+        }
+        
+        // Atualizar progresso numérico
+        const progressoNumerico = document.getElementById('progressoNumerico');
+        if (progressoNumerico) {
+            progressoNumerico.textContent = `${Math.round(data.progresso_numerico || 0)}%`;
+        }
+        
+        // Atualizar tempo estimado
+        const tempoEstimado = document.getElementById('tempoEstimado');
+        if (tempoEstimado) {
+            tempoEstimado.textContent = data.tempo_estimado || 'Calculando...';
+        }
+        
+        // Atualizar barra de progresso
+        const progressBar = document.getElementById('progressBar');
+        if (progressBar) {
+            const progresso = data.progresso_numerico || 0;
+            progressBar.style.width = `${progresso}%`;
+            
+            // Mudar cor baseada no progresso
+            if (progresso < 25) {
+                progressBar.className = 'progress-bar progress-bar-striped progress-bar-animated bg-warning';
+            } else if (progresso < 75) {
+                progressBar.className = 'progress-bar progress-bar-striped progress-bar-animated bg-info';
+            } else {
+                progressBar.className = 'progress-bar progress-bar-striped progress-bar-animated bg-success';
+            }
+        }
+        
+        // Atualizar etapas
+        this.atualizarEtapas(data.etapa_atual || 0);
+    }
+
+    atualizarEtapas(etapaAtual) {
+        const etapas = document.querySelectorAll('.etapa-item');
+        etapas.forEach((etapa, index) => {
+            const etapaNum = index + 1;
+            const icon = etapa.querySelector('.etapa-icon');
+            const text = etapa.querySelector('.etapa-text');
+            
+            if (etapaNum <= etapaAtual) {
+                // Etapa concluída
+                icon.className = 'etapa-icon bg-success text-white rounded-circle d-inline-flex align-items-center justify-content-center';
+                icon.style.cssText = 'width: 30px; height: 30px; transition: all 0.3s ease;';
+                text.className = 'etapa-text small mt-1 text-success fw-bold';
+                
+                // Adicionar ícone de check
+                icon.innerHTML = '<i class="fas fa-check fa-sm"></i>';
+            } else if (etapaNum === etapaAtual + 1) {
+                // Etapa atual
+                icon.className = 'etapa-icon bg-primary text-white rounded-circle d-inline-flex align-items-center justify-content-center';
+                icon.style.cssText = 'width: 30px; height: 30px; transition: all 0.3s ease; animation: pulse 1.5s infinite;';
+                text.className = 'etapa-text small mt-1 text-primary fw-bold';
+            } else {
+                // Etapa pendente
+                icon.className = 'etapa-icon bg-secondary text-white rounded-circle d-inline-flex align-items-center justify-content-center';
+                icon.style.cssText = 'width: 30px; height: 30px; transition: all 0.3s ease;';
+                text.className = 'etapa-text small mt-1 text-muted';
+            }
+        });
     }
 
     async monitorarLogs() {
@@ -186,12 +336,11 @@ class ScraperPJEApp {
                 if (data.logs && data.logs.length > 0) {
                     this.atualizarLogsDetalhados(data);
                     this.atualizarEstatisticas(data);
-                    this.atualizarProgresso(data.progress || 0);
                 }
             } catch (error) {
                 console.error('Erro ao monitorar logs:', error);
             }
-        }, 1000);
+        }, 3000); // Aumentado de 1000ms para 3000ms (3 segundos)
     }
 
     stopMonitoring() {
@@ -209,20 +358,49 @@ class ScraperPJEApp {
         const logArea = document.getElementById('logArea');
         
         if (data.logs && data.logs.length > 0) {
-            let html = '';
+            // Verificar se já temos logs existentes
+            const logsExistentes = logArea.querySelectorAll('.log-entry');
+            const logsExistentesCount = logsExistentes.length;
             
-            data.logs.forEach(log => {
-                const tipoClass = this.getTipoClass(log.tipo);
-                html += `
-                    <div class="log-entry ${tipoClass}">
+            // Se temos novos logs, adicionar apenas os novos
+            if (data.logs.length > logsExistentesCount) {
+                const novosLogs = data.logs.slice(logsExistentesCount);
+                
+                novosLogs.forEach(log => {
+                    const tipoClass = this.getTipoClass(log.tipo);
+                    const icon = this.getTipoIcon(log.tipo);
+                    const logEntry = document.createElement('div');
+                    logEntry.className = `log-entry ${tipoClass} animate__animated animate__fadeIn`;
+                    logEntry.innerHTML = `
                         <span class="log-timestamp">[${log.timestamp}]</span>
+                        <span class="log-icon">${icon}</span>
                         <span class="log-message">${log.message}</span>
-                    </div>
-                `;
-            });
-            
-            logArea.innerHTML = html;
-            logArea.scrollTop = logArea.scrollHeight;
+                    `;
+                    
+                    logArea.appendChild(logEntry);
+                });
+                
+                // Scroll suave para o final
+                this.scrollToBottom(logArea);
+            }
+        }
+    }
+
+    scrollToBottom(element) {
+        // Scroll suave para o final da área de logs
+        element.scrollTo({
+            top: element.scrollHeight,
+            behavior: 'smooth'
+        });
+    }
+
+    getTipoIcon(tipo) {
+        switch (tipo) {
+            case 'success': return '<i class="fas fa-check-circle text-success"></i>';
+            case 'error': return '<i class="fas fa-exclamation-circle text-danger"></i>';
+            case 'warning': return '<i class="fas fa-exclamation-triangle text-warning"></i>';
+            case 'info': return '<i class="fas fa-info-circle text-info"></i>';
+            default: return '<i class="fas fa-info-circle text-info"></i>';
         }
     }
 
@@ -232,23 +410,45 @@ class ScraperPJEApp {
         if (data.total_processos > 0 || data.processos_encontrados > 0 || data.downloads_concluidos > 0 || data.erros > 0) {
             statsRapidas.style.display = 'block';
             
-            document.getElementById('totalProcessos').textContent = data.total_processos || 0;
-            document.getElementById('processosEncontrados').textContent = data.processos_encontrados || 0;
-            document.getElementById('downloadsConcluidos').textContent = data.downloads_concluidos || 0;
-            document.getElementById('totalErros').textContent = data.erros || 0;
+            // Atualizar apenas se os valores mudaram significativamente
+            this.atualizarContadorSeNecessario('totalProcessos', data.total_processos || 0);
+            this.atualizarContadorSeNecessario('processosEncontrados', data.processos_encontrados || 0);
+            this.atualizarContadorSeNecessario('downloadsConcluidos', data.downloads_concluidos || 0);
+            this.atualizarContadorSeNecessario('totalErros', data.erros || 0);
         }
     }
 
-    atualizarProgresso(progress) {
-        const progressContainer = document.getElementById('progressContainer');
-        const progressBar = document.getElementById('progressBar');
-        const progressText = document.getElementById('progressText');
+    atualizarContadorSeNecessario(elementId, valorFinal) {
+        const element = document.getElementById(elementId);
+        if (!element) return;
         
-        if (progress > 0) {
-            progressContainer.style.display = 'block';
-            progressBar.style.width = `${progress}%`;
-            progressText.textContent = `${Math.round(progress)}%`;
+        const valorAtual = parseInt(element.textContent) || 0;
+        
+        // Só atualizar se o valor mudou
+        if (valorAtual !== valorFinal) {
+            this.animarContador(elementId, valorFinal);
         }
+    }
+
+    animarContador(elementId, valorFinal) {
+        const element = document.getElementById(elementId);
+        if (!element) return;
+        
+        const valorAtual = parseInt(element.textContent) || 0;
+        if (valorAtual === valorFinal) return;
+        
+        const incremento = (valorFinal - valorAtual) / 10;
+        let valor = valorAtual;
+        
+        const animacao = setInterval(() => {
+            valor += incremento;
+            if ((incremento > 0 && valor >= valorFinal) || (incremento < 0 && valor <= valorFinal)) {
+                element.textContent = valorFinal;
+                clearInterval(animacao);
+            } else {
+                element.textContent = Math.round(valor);
+            }
+        }, 100);
     }
 
     getTipoClass(tipo) {
@@ -270,7 +470,6 @@ class ScraperPJEApp {
                 if (data.logs && data.logs.length > 0) {
                     this.atualizarLogsDetalhados(data);
                     this.atualizarEstatisticas(data);
-                    this.atualizarProgresso(data.progress || 0);
                 }
             } catch (error) {
                 this.log(`Erro ao atualizar logs: ${error.message}`, 'error');
@@ -335,26 +534,26 @@ class ScraperPJEApp {
         let statsHtml = `
             <div class="row text-center">
                 <div class="col-6 mb-3">
-                    <div class="stat-card bg-primary text-white p-3 rounded">
-                        <h4>${data.processos_encontrados || 0}</h4>
+                    <div class="stat-card p-3 rounded">
+                        <h4 class="text-primary">${data.processos_encontrados || 0}</h4>
                         <small>Processos Encontrados</small>
                     </div>
                 </div>
                 <div class="col-6 mb-3">
-                    <div class="stat-card bg-success text-white p-3 rounded">
-                        <h4>${data.downloads_concluidos || 0}</h4>
+                    <div class="stat-card p-3 rounded">
+                        <h4 class="text-success">${data.downloads_concluidos || 0}</h4>
                         <small>Downloads Concluídos</small>
                     </div>
                 </div>
                 <div class="col-6 mb-3">
-                    <div class="stat-card bg-info text-white p-3 rounded">
-                        <h4>${data.total_processos || 0}</h4>
+                    <div class="stat-card p-3 rounded">
+                        <h4 class="text-info">${data.total_processos || 0}</h4>
                         <small>Total de Processos</small>
                     </div>
                 </div>
                 <div class="col-6 mb-3">
-                    <div class="stat-card bg-danger text-white p-3 rounded">
-                        <h4>${data.erros || 0}</h4>
+                    <div class="stat-card p-3 rounded">
+                        <h4 class="text-danger">${data.erros || 0}</h4>
                         <small>Erros</small>
                     </div>
                 </div>
@@ -375,51 +574,132 @@ class ScraperPJEApp {
             const historicoArea = document.getElementById('historicoArea');
             
             if (data.consultas && data.consultas.length > 0) {
-                let html = '<div class="table-responsive"><table class="table table-hover">';
-                html += `
-                    <thead class="table-light">
-                        <tr>
-                            <th>Nome</th>
-                            <th>CPF</th>
-                            <th>Status</th>
-                            <th>Processos</th>
-                            <th>Downloads</th>
-                            <th>Data</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                `;
+                let html = '<div class="row g-3">';
                 
                 data.consultas.forEach(consulta => {
                     const statusClass = consulta.status === 'completed' ? 'success' : 
                                       consulta.status === 'error' ? 'danger' : 'warning';
                     const statusText = consulta.status === 'completed' ? 'Concluído' : 
                                      consulta.status === 'error' ? 'Erro' : 'Em Andamento';
+                    const statusIcon = consulta.status === 'completed' ? 'check-circle' : 
+                                     consulta.status === 'error' ? 'exclamation-circle' : 'clock';
+                    
+                    const progresso = consulta.progresso_numerico || 0;
+                    const progressoColor = progresso >= 75 ? 'success' : 
+                                          progresso >= 25 ? 'info' : 'warning';
+                    
+                    const dataFormatada = new Date(consulta.created_at).toLocaleString('pt-BR', {
+                        day: '2-digit',
+                        month: '2-digit',
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                    });
                     
                     html += `
-                        <tr>
-                            <td>${consulta.nome}</td>
-                            <td>${consulta.cpf}</td>
-                            <td><span class="badge bg-${statusClass}">${statusText}</span></td>
-                            <td>${consulta.processos_encontrados || 0}</td>
-                            <td>${consulta.downloads_concluidos || 0}</td>
-                            <td>${new Date(consulta.created_at).toLocaleString()}</td>
-                        </tr>
+                        <div class="col-lg-6 col-xl-4">
+                            <div class="historico-card card h-100 border-0 shadow-sm">
+                                <div class="card-header bg-transparent border-0 pb-0">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <div class="flex-grow-1">
+                                            <h6 class="card-title mb-1 text-truncate" title="${consulta.nome}">
+                                                <i class="fas fa-user me-2 text-primary"></i>
+                                                ${consulta.nome}
+                                            </h6>
+                                            <p class="card-subtitle mb-0 text-muted small">
+                                                <i class="fas fa-id-card me-1"></i>
+                                                ${consulta.cpf}
+                                            </p>
+                                        </div>
+                                        <span class="badge bg-${statusClass} fs-6">
+                                            <i class="fas fa-${statusIcon} me-1"></i>
+                                            ${statusText}
+                                        </span>
+                                    </div>
+                                </div>
+                                
+                                <div class="card-body pt-2">
+                                    <!-- Progresso -->
+                                    <div class="mb-3">
+                                        <div class="d-flex justify-content-between align-items-center mb-1">
+                                            <small class="text-muted">Progresso</small>
+                                            <small class="text-muted fw-bold">${progresso}%</small>
+                                        </div>
+                                        <div class="progress" style="height: 8px;">
+                                            <div class="progress-bar bg-${progressoColor}" 
+                                                 style="width: ${progresso}%" 
+                                                 role="progressbar"></div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Estatísticas -->
+                                    <div class="row g-2 mb-3">
+                                        <div class="col-6">
+                                            <div class="stat-item-mini text-center p-2 rounded">
+                                                <div class="stat-number text-primary fw-bold">${consulta.processos_encontrados || 0}</div>
+                                                <div class="stat-label text-muted small">Processos</div>
+                                            </div>
+                                        </div>
+                                        <div class="col-6">
+                                            <div class="stat-item-mini text-center p-2 rounded">
+                                                <div class="stat-number text-success fw-bold">${consulta.downloads_concluidos || 0}</div>
+                                                <div class="stat-label text-muted small">Downloads</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Data -->
+                                    <div class="text-center">
+                                        <small class="text-muted">
+                                            <i class="fas fa-calendar-alt me-1"></i>
+                                            ${dataFormatada}
+                                        </small>
+                                    </div>
+                                </div>
+                                
+                                <div class="card-footer bg-transparent border-0 pt-0">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <small class="text-muted">
+                                            <i class="fas fa-clock me-1"></i>
+                                            ID: ${consulta.consulta_id.split('_')[2]}
+                                        </small>
+                                        <button class="btn btn-sm btn-outline-primary" 
+                                                onclick="app.detalhesConsulta('${consulta.consulta_id}')"
+                                                title="Ver detalhes">
+                                            <i class="fas fa-eye me-1"></i>
+                                            Detalhes
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     `;
                 });
                 
-                html += '</tbody></table></div>';
+                html += '</div>';
                 historicoArea.innerHTML = html;
             } else {
                 historicoArea.innerHTML = `
-                    <div class="text-muted text-center py-4">
-                        <i class="fas fa-clock me-2"></i>
-                        Nenhuma consulta realizada ainda
+                    <div class="text-center py-5">
+                        <div class="empty-state">
+                            <i class="fas fa-history fa-3x text-muted mb-3"></i>
+                            <h5 class="text-muted mb-2">Nenhuma consulta realizada</h5>
+                            <p class="text-muted mb-0">As consultas realizadas aparecerão aqui</p>
+                        </div>
                     </div>
                 `;
             }
         } catch (error) {
             this.log(`Erro ao carregar histórico: ${error.message}`, 'error');
+            historicoArea.innerHTML = `
+                <div class="text-center py-5">
+                    <div class="error-state">
+                        <i class="fas fa-exclamation-triangle fa-3x text-danger mb-3"></i>
+                        <h5 class="text-danger mb-2">Erro ao carregar histórico</h5>
+                        <p class="text-muted mb-0">Tente recarregar a página</p>
+                    </div>
+                </div>
+            `;
         }
     }
 
@@ -456,7 +736,6 @@ class ScraperPJEApp {
             </div>
         `;
         document.getElementById('statsRapidas').style.display = 'none';
-        document.getElementById('progressContainer').style.display = 'none';
         this.log('Log limpo pelo usuário', 'info');
     }
 
@@ -464,11 +743,13 @@ class ScraperPJEApp {
         const logArea = document.getElementById('logArea');
         const timestamp = new Date().toLocaleTimeString();
         const tipoClass = this.getTipoClass(type);
+        const icon = this.getTipoIcon(type);
         
         const logEntry = document.createElement('div');
-        logEntry.className = `log-entry ${tipoClass}`;
+        logEntry.className = `log-entry ${tipoClass} animate__animated animate__fadeIn`;
         logEntry.innerHTML = `
             <span class="log-timestamp">[${timestamp}]</span>
+            <span class="log-icon">${icon}</span>
             <span class="log-message">${message}</span>
         `;
         
@@ -478,7 +759,7 @@ class ScraperPJEApp {
 
     showAlert(message, type) {
         const alertDiv = document.createElement('div');
-        alertDiv.className = `alert alert-${type === 'error' ? 'danger' : type} alert-dismissible fade show position-fixed`;
+        alertDiv.className = `alert alert-${type === 'error' ? 'danger' : type} alert-dismissible fade show position-fixed animate__animated animate__fadeInRight`;
         alertDiv.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
         alertDiv.innerHTML = `
             ${message}
@@ -489,9 +770,71 @@ class ScraperPJEApp {
         
         setTimeout(() => {
             if (alertDiv.parentNode) {
-                alertDiv.remove();
+                alertDiv.classList.remove('animate__fadeInRight');
+                alertDiv.classList.add('animate__fadeOutRight');
+                setTimeout(() => {
+                    if (alertDiv.parentNode) {
+                        alertDiv.remove();
+                    }
+                }, 300);
             }
         }, 5000);
+    }
+
+    // Funções de gerenciamento de tema
+    initTheme() {
+        const savedTheme = localStorage.getItem('theme') || 'light';
+        this.setTheme(savedTheme);
+    }
+
+    toggleTheme() {
+        const currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
+        const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+        this.setTheme(newTheme);
+    }
+
+    setTheme(theme) {
+        document.documentElement.setAttribute('data-theme', theme);
+        localStorage.setItem('theme', theme);
+        
+        const themeToggle = document.getElementById('themeToggle');
+        const icon = themeToggle.querySelector('i');
+        
+        if (theme === 'dark') {
+            icon.className = 'fas fa-sun';
+            themeToggle.title = 'Mudar para modo claro';
+            this.log('Tema escuro ativado', 'info');
+        } else {
+            icon.className = 'fas fa-moon';
+            themeToggle.title = 'Mudar para modo escuro';
+            this.log('Tema claro ativado', 'info');
+        }
+        
+        // Adicionar animação de transição
+        document.body.style.transition = 'all 0.3s ease';
+        setTimeout(() => {
+            document.body.style.transition = '';
+        }, 300);
+    }
+
+    // Função para ver detalhes da consulta
+    detalhesConsulta(consultaId) {
+        // Buscar dados da consulta
+        fetch(`/api/status-consulta/${consultaId}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'completed') {
+                    this.showResultado(data);
+                    // Rolar para a seção de resultados
+                    document.getElementById('resultsSection').scrollIntoView({ behavior: 'smooth' });
+                } else {
+                    this.showAlert('Esta consulta ainda não foi concluída', 'warning');
+                }
+            })
+            .catch(error => {
+                this.showAlert('Erro ao carregar detalhes da consulta', 'error');
+                this.log(`Erro ao carregar detalhes: ${error.message}`, 'error');
+            });
     }
 }
 

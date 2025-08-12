@@ -10,7 +10,7 @@ import threading
 import re
 import os
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 import sys
 import os
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'core'))
@@ -54,12 +54,51 @@ def formatar_cpf(cpf):
     cpf_limpo = re.sub(r'[^0-9]', '', cpf)
     return f"{cpf_limpo[:3]}.{cpf_limpo[3:6]}.{cpf_limpo[6:9]}-{cpf_limpo[9:]}"
 
+def calcular_tempo_estimado(etapa_atual, total_etapas, tempo_decorrido):
+    """Calcula tempo estimado restante baseado no progresso atual"""
+    if etapa_atual <= 0:
+        return "Calculando..."
+    
+    tempo_por_etapa = tempo_decorrido / etapa_atual
+    etapas_restantes = total_etapas - etapa_atual
+    tempo_restante = tempo_por_etapa * etapas_restantes
+    
+    if tempo_restante < 60:
+        return f"{int(tempo_restante)}s"
+    elif tempo_restante < 3600:
+        minutos = int(tempo_restante // 60)
+        segundos = int(tempo_restante % 60)
+        return f"{minutos}m {segundos}s"
+    else:
+        horas = int(tempo_restante // 3600)
+        minutos = int((tempo_restante % 3600) // 60)
+        return f"{horas}h {minutos}m"
+
 def executar_consulta_thread(nome, cpf, consulta_id):
     """Executa consulta em thread separada com logs detalhados"""
     try:
-        consultas[consulta_id]['status'] = 'running'
-        consultas[consulta_id]['progress'] = 'Iniciando consulta...'
-        consultas[consulta_id]['start_time'] = datetime.now().isoformat()
+        # Inicializar consulta com etapas detalhadas
+        etapas = [
+            {"nome": "Iniciando sistema", "progresso": 5, "descricao": "Preparando ambiente..."},
+            {"nome": "Conectando ao PJE", "progresso": 10, "descricao": "Estabelecendo conexão..."},
+            {"nome": "Fazendo login", "progresso": 20, "descricao": "Autenticando no sistema..."},
+            {"nome": "Buscando processos", "progresso": 40, "descricao": "Consultando banco de dados..."},
+            {"nome": "Abrindo abas", "progresso": 60, "descricao": "Preparando downloads..."},
+            {"nome": "Baixando arquivos", "progresso": 80, "descricao": "Transferindo PDFs..."},
+            {"nome": "Finalizando", "progresso": 95, "descricao": "Organizando arquivos..."},
+            {"nome": "Concluído", "progresso": 100, "descricao": "Consulta finalizada!"}
+        ]
+        
+        consultas[consulta_id].update({
+            'status': 'running',
+            'etapas': etapas,
+            'etapa_atual': 0,
+            'total_etapas': len(etapas),
+            'tempo_inicio': datetime.now(),
+            'tempo_estimado': 'Calculando...',
+            'progress': etapas[0]['descricao'],
+            'progresso_numerico': etapas[0]['progresso']
+        })
         
         # Executar scraper com sistema de logs
         resultados = executar_scraper(nome, cpf, consulta_id)
@@ -68,24 +107,31 @@ def executar_consulta_thread(nome, cpf, consulta_id):
         logger = get_logger(consulta_id)
         if logger:
             summary = logger.get_summary()
-            consultas[consulta_id]['logs'] = summary['logs']
-            consultas[consulta_id]['total_processos'] = summary['total_processos']
-            consultas[consulta_id]['processos_encontrados'] = summary['processos_encontrados']
-            consultas[consulta_id]['downloads_concluidos'] = summary['downloads_concluidos']
-            consultas[consulta_id]['erros'] = summary['erros']
-            consultas[consulta_id]['progress'] = summary['progress']
+            consultas[consulta_id].update({
+                'logs': summary['logs'],
+                'total_processos': summary['total_processos'],
+                'processos_encontrados': summary['processos_encontrados'],
+                'downloads_concluidos': summary['downloads_concluidos'],
+                'erros': summary['erros'],
+                'progress': 'Consulta concluída com sucesso!',
+                'progresso_numerico': 100,
+                'etapa_atual': len(etapas),
+                'tempo_fim': datetime.now()
+            })
             
             # Remover logger após conclusão
             remove_logger(consulta_id)
         
         consultas[consulta_id]['status'] = 'completed'
-        consultas[consulta_id]['end_time'] = datetime.now().isoformat()
         consultas[consulta_id]['result'] = resultados
         
     except Exception as e:
-        consultas[consulta_id]['status'] = 'error'
-        consultas[consulta_id]['progress'] = f'Erro: {str(e)}'
-        consultas[consulta_id]['end_time'] = datetime.now().isoformat()
+        consultas[consulta_id].update({
+            'status': 'error',
+            'progress': f'Erro: {str(e)}',
+            'progresso_numerico': 0,
+            'tempo_fim': datetime.now()
+        })
         
         # Adicionar erro aos logs
         logger = get_logger(consulta_id)
@@ -147,12 +193,19 @@ def api_iniciar_consulta():
         'cpf': cpf_limpo,
         'status': 'pending',
         'progress': 'Aguardando início...',
+        'progresso_numerico': 0,
         'created_at': datetime.now().isoformat(),
         'logs': [],
         'total_processos': 0,
         'processos_encontrados': 0,
         'downloads_concluidos': 0,
-        'erros': 0
+        'erros': 0,
+        'etapas': [],
+        'etapa_atual': 0,
+        'total_etapas': 0,
+        'tempo_inicio': None,
+        'tempo_fim': None,
+        'tempo_estimado': 'Calculando...'
     }
     
     # Executar em thread separada
@@ -185,6 +238,35 @@ def api_status_consulta(consulta_id):
             consulta['processos_encontrados'] = summary['processos_encontrados']
             consulta['downloads_concluidos'] = summary['downloads_concluidos']
             consulta['erros'] = summary['erros']
+            
+            # Atualizar progresso baseado no status
+            if 'iniciando' in summary['status'].lower():
+                consulta['etapa_atual'] = 1
+                consulta['progresso_numerico'] = 5
+            elif 'login' in summary['status'].lower():
+                consulta['etapa_atual'] = 3
+                consulta['progresso_numerico'] = 20
+            elif 'buscando' in summary['status'].lower():
+                consulta['etapa_atual'] = 4
+                consulta['progresso_numerico'] = 40
+            elif 'abrindo' in summary['status'].lower():
+                consulta['etapa_atual'] = 5
+                consulta['progresso_numerico'] = 60
+            elif 'baixando' in summary['status'].lower():
+                consulta['etapa_atual'] = 6
+                consulta['progresso_numerico'] = 80
+            elif 'concluido' in summary['status'].lower():
+                consulta['etapa_atual'] = 8
+                consulta['progresso_numerico'] = 100
+        
+        # Calcular tempo estimado
+        if consulta.get('tempo_inicio') and consulta['etapa_atual'] > 0:
+            tempo_decorrido = (datetime.now() - consulta['tempo_inicio']).total_seconds()
+            consulta['tempo_estimado'] = calcular_tempo_estimado(
+                consulta['etapa_atual'], 
+                consulta['total_etapas'], 
+                tempo_decorrido
+            )
     
     return jsonify({
         'consulta_id': consulta_id,
@@ -192,6 +274,10 @@ def api_status_consulta(consulta_id):
         'cpf': consulta['cpf'],
         'status': consulta['status'],
         'progress': consulta['progress'],
+        'progresso_numerico': consulta.get('progresso_numerico', 0),
+        'etapa_atual': consulta.get('etapa_atual', 0),
+        'total_etapas': consulta.get('total_etapas', 0),
+        'tempo_estimado': consulta.get('tempo_estimado', 'Calculando...'),
         'created_at': consulta['created_at'],
         'start_time': consulta.get('start_time'),
         'end_time': consulta.get('end_time'),
@@ -239,6 +325,7 @@ def api_listar_consultas():
             'cpf': consulta['cpf'],
             'status': consulta['status'],
             'progress': consulta['progress'],
+            'progresso_numerico': consulta.get('progresso_numerico', 0),
             'created_at': consulta['created_at'],
             'total_processos': consulta.get('total_processos', 0),
             'processos_encontrados': consulta.get('processos_encontrados', 0),
