@@ -25,6 +25,24 @@ class WebLogger:
         self.downloads_concluidos = 0
         self.erros = []
         
+        # Etapas detalhadas do progresso
+        self.etapas = {
+            "iniciando": {"nome": "Iniciando Sistema", "progresso": 0},
+            "navegador": {"nome": "Iniciando Navegador", "progresso": 5},
+            "login": {"nome": "Fazendo Login", "progresso": 15},
+            "login_concluido": {"nome": "Login Concluído", "progresso": 25},
+            "buscando": {"nome": "Buscando Processos", "progresso": 35},
+            "processos_encontrados": {"nome": "Processos Encontrados", "progresso": 45},
+            "abrindo_abas": {"nome": "Abrindo Abas", "progresso": 55},
+            "iniciando_downloads": {"nome": "Iniciando Downloads", "progresso": 65},
+            "aguardando_downloads": {"nome": "Aguardando Downloads", "progresso": 75},
+            "baixando_pdfs": {"nome": "Baixando PDFs", "progresso": 85},
+            "concluido": {"nome": "Concluído", "progresso": 100},
+            "erro": {"nome": "Erro", "progresso": 0}
+        }
+        
+        self.etapa_atual = "iniciando"
+        
     def log(self, message, tipo="info"):
         """Adiciona log com timestamp"""
         timestamp = datetime.now().strftime("%H:%M:%S")
@@ -39,8 +57,18 @@ class WebLogger:
     def update_status(self, status, progress=None):
         """Atualiza status e progresso"""
         self.status = status
+        self.etapa_atual = status
+        
         if progress is not None:
             self.progress = progress
+        elif status in self.etapas:
+            self.progress = self.etapas[status]["progresso"]
+            
+    def get_etapa_atual(self):
+        """Retorna informações da etapa atual"""
+        if self.etapa_atual in self.etapas:
+            return self.etapas[self.etapa_atual]
+        return {"nome": "Desconhecido", "progresso": 0}
             
     def add_error(self, error):
         """Adiciona erro à lista"""
@@ -49,9 +77,11 @@ class WebLogger:
         
     def get_summary(self):
         """Retorna resumo da execução"""
+        etapa_atual = self.get_etapa_atual()
         return {
             "status": self.status,
             "progress": self.progress,
+            "etapa_atual": etapa_atual,
             "total_processos": self.total_processos,
             "processos_encontrados": self.processos_encontrados,
             "downloads_concluidos": self.downloads_concluidos,
@@ -77,9 +107,10 @@ def remove_logger(consulta_id):
 def iniciar_driver(download_dir=None, logger=None):
     if logger:
         logger.log("🚀 Iniciando navegador Chrome...", "info")
+        logger.update_status("navegador", 5)
     
     chrome_options = webdriver.ChromeOptions()
-    #chrome_options.add_argument("--headless=new")
+    chrome_options.add_argument("--headless=new")
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
     chrome_options.add_argument("--disable-gpu")
@@ -131,7 +162,7 @@ def criar_diretorio_downloads(nome_pessoa=None, logger=None):
 def login(driver, logger=None):
     if logger:
         logger.log("🔐 Iniciando processo de login...", "info")
-        logger.update_status("fazendo_login", 10)
+        logger.update_status("login", 15)
     
     wait = WebDriverWait(driver, WEBDRIVER_WAIT)
 
@@ -149,7 +180,7 @@ def login(driver, logger=None):
         
         if logger:
             logger.log("✅ Login realizado com sucesso", "success")
-            logger.update_status("login_concluido", 20)
+            logger.update_status("login_concluido", 25)
             
     except Exception as e:
         if logger:
@@ -193,7 +224,7 @@ def aguardar_todos_downloads(driver, download_dir, cpf, logger=None):
     
     if logger:
         logger.log(f"📊 Aguardando {num_abas} downloads...", "info")
-        logger.update_status("aguardando_downloads", 70)
+        logger.update_status("aguardando_downloads", 75)
         logger.total_processos = num_abas
     
     resultados = []
@@ -217,7 +248,7 @@ def aguardar_todos_downloads(driver, download_dir, cpf, logger=None):
                         logger.log(f"📄 PDF {downloads_concluidos}/{num_abas} baixado: {os.path.basename(file_path)}", "success")
                         logger.log(f"📍 Localização: {file_path}", "info")
                         logger.downloads_concluidos = downloads_concluidos
-                        progress = 70 + (downloads_concluidos / num_abas) * 25
+                        progress = 75 + (downloads_concluidos / num_abas) * 20
                         logger.update_status("baixando_pdfs", progress)
                     
                     info = {
@@ -256,7 +287,7 @@ def aguardar_todos_downloads(driver, download_dir, cpf, logger=None):
 def buscar_processo(driver, cpf, download_dir, logger=None):
     if logger:
         logger.log("🔍 Iniciando busca de processos...", "info")
-        logger.update_status("buscando_processos", 30)
+        logger.update_status("buscando", 35)
     
     wait = WebDriverWait(driver, WEBDRIVER_WAIT)
     driver.get("https://pje1g.trf1.jus.br/pje/Processo/ConsultaProcesso/listView.seam")
@@ -285,12 +316,12 @@ def buscar_processo(driver, cpf, download_dir, logger=None):
         if logger:
             logger.log(f"🔍 {len(botoes)} processos encontrados.", "success")
             logger.processos_encontrados = len(botoes)
-            logger.update_status("processos_encontrados", 40)
+            logger.update_status("processos_encontrados", 45)
 
         # 🔄 Abrir todas as abas
         if logger:
             logger.log("🔄 Abrindo processos em novas abas...", "info")
-            logger.update_status("abrindo_abas", 50)
+            logger.update_status("abrindo_abas", 55)
         
         for i, botao in enumerate(botoes):
             try:
@@ -313,7 +344,7 @@ def buscar_processo(driver, cpf, download_dir, logger=None):
         # ⏬ Ativar todos os downloads nas abas
         if logger:
             logger.log("⏬ Iniciando downloads dos processos...", "info")
-            logger.update_status("iniciando_downloads", 60)
+            logger.update_status("iniciando_downloads", 65)
         
         for i in range(1, len(driver.window_handles)):
             try:
@@ -346,6 +377,7 @@ def buscar_processo(driver, cpf, download_dir, logger=None):
 
         if logger:
             logger.log(f"⏳ Aguardando downloads na pasta: {download_dir}", "info")
+            logger.update_status("aguardando_downloads", 75)
 
         # 📥 Aguardar todos os downloads com timeout inteligente
         resultados = aguardar_todos_downloads(driver, download_dir, cpf, logger)
@@ -379,6 +411,13 @@ def executar_scraper(nome: str, cpf: str, consulta_id: str = None):
     if logger:
         logger.log(f"🚀 Iniciando scraper para: {nome} (CPF: {cpf})", "info")
         logger.update_status("iniciando", 0)
+        logger.log("📋 Etapas do processo:", "info")
+        logger.log("   1. Iniciar navegador", "info")
+        logger.log("   2. Fazer login no PJE", "info")
+        logger.log("   3. Buscar processos", "info")
+        logger.log("   4. Abrir abas dos processos", "info")
+        logger.log("   5. Iniciar downloads", "info")
+        logger.log("   6. Aguardar conclusão", "info")
     
     download_dir = criar_diretorio_downloads(nome, logger)
     driver = iniciar_driver(download_dir, logger)
