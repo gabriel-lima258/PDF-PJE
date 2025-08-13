@@ -92,6 +92,38 @@ class WebLogger:
 # Variável global para armazenar loggers ativos
 active_loggers = {}
 
+def get_desktop_path():
+    """Detecta automaticamente o caminho do desktop para qualquer sistema operacional"""
+    import platform
+    
+    system = platform.system()
+    
+    if system == "Windows":
+        desktop_paths = [
+            os.path.expanduser("~/OneDrive/Attachments/Área de Trabalho"),  # OneDrive Windows
+            os.path.expanduser("~/OneDrive/Desktop"),  # OneDrive Desktop
+            os.path.expanduser("~/Desktop"),  # Desktop padrão Windows
+            os.path.expanduser("~/Área de Trabalho"),  # Desktop em português
+        ]
+    elif system == "Darwin":  # macOS
+        desktop_paths = [
+            os.path.expanduser("~/Desktop"),  # Desktop padrão macOS
+            os.path.expanduser("~/OneDrive/Desktop"),  # OneDrive macOS
+        ]
+    else:  # Linux
+        desktop_paths = [
+            os.path.expanduser("~/Desktop"),  # Desktop padrão Linux
+            os.path.expanduser("~/OneDrive/Desktop"),  # OneDrive Linux
+            os.path.expanduser("~/Área de Trabalho"),  # Desktop em português
+        ]
+    
+    for path in desktop_paths:
+        if os.path.exists(path):
+            return path
+    
+    # Se nenhum funcionar, usar o diretório atual
+    return os.getcwd()
+
 def get_logger(consulta_id):
     """Obtém logger para uma consulta específica"""
     if consulta_id not in active_loggers:
@@ -104,10 +136,31 @@ def remove_logger(consulta_id):
         del active_loggers[consulta_id]
 
 # 📌 Criar o driver por função (NÃO global)
+def limpar_diretorios_chrome_antigos():
+    """Limpa diretórios antigos do Chrome para evitar acúmulo"""
+    import tempfile
+    import glob
+    import time
+    import shutil
+    
+    temp_dir = tempfile.gettempdir()
+    chrome_dirs = glob.glob(os.path.join(temp_dir, "chrome_user_data_*"))
+    
+    # Remover TODOS os diretórios do Chrome (mais agressivo)
+    for chrome_dir in chrome_dirs:
+        try:
+            if os.path.exists(chrome_dir):
+                shutil.rmtree(chrome_dir, ignore_errors=True)
+        except:
+            pass
+
 def iniciar_driver(download_dir=None, logger=None):
     if logger:
         logger.log("🚀 Iniciando navegador Chrome...", "info")
         logger.update_status("navegador", 5)
+    
+    # Limpar diretórios antigos do Chrome
+    limpar_diretorios_chrome_antigos()
     
     chrome_options = webdriver.ChromeOptions()
     # chrome_options.add_argument("--headless=new")
@@ -115,6 +168,48 @@ def iniciar_driver(download_dir=None, logger=None):
     chrome_options.add_argument("--disable-dev-shm-usage")
     chrome_options.add_argument("--disable-gpu")
     chrome_options.add_argument("--window-size=1920,1080")
+    chrome_options.add_argument("--disable-extensions")
+    chrome_options.add_argument("--disable-plugins")
+    chrome_options.add_argument("--disable-web-security")
+    chrome_options.add_argument("--allow-running-insecure-content")
+    chrome_options.add_argument("--disable-background-timer-throttling")
+    chrome_options.add_argument("--disable-backgrounding-occluded-windows")
+    chrome_options.add_argument("--disable-renderer-backgrounding")
+    
+    # Criar diretório único para dados do usuário
+    import tempfile
+    import uuid
+    import time
+    import shutil
+    
+    # Usar timestamp + UUID para garantir unicidade
+    timestamp = int(time.time())
+    unique_id = uuid.uuid4().hex[:8]
+    user_data_dir = os.path.join(tempfile.gettempdir(), f"chrome_user_data_{timestamp}_{unique_id}")
+    
+    # Remover diretório se já existir (para evitar conflitos)
+    if os.path.exists(user_data_dir):
+        try:
+            shutil.rmtree(user_data_dir)
+        except:
+            pass
+    
+    # Criar o diretório
+    os.makedirs(user_data_dir, exist_ok=True)
+    chrome_options.add_argument(f"--user-data-dir={user_data_dir}")
+    
+    # Adicionar opções para evitar conflitos
+    chrome_options.add_argument("--no-first-run")
+    chrome_options.add_argument("--no-default-browser-check")
+    chrome_options.add_argument("--disable-default-apps")
+    chrome_options.add_argument("--disable-sync")
+    chrome_options.add_argument("--disable-translate")
+    chrome_options.add_argument("--disable-background-networking")
+    chrome_options.add_argument("--disable-background-timer-throttling")
+    chrome_options.add_argument("--disable-backgrounding-occluded-windows")
+    chrome_options.add_argument("--disable-renderer-backgrounding")
+    chrome_options.add_argument("--disable-features=TranslateUI")
+    chrome_options.add_argument("--disable-ipc-flooding-protection")
     
     # Configurar diretório de download personalizado
     if download_dir:
@@ -137,8 +232,21 @@ def iniciar_driver(download_dir=None, logger=None):
 def criar_diretorio_downloads(nome_pessoa=None, logger=None):
     """Cria diretório de downloads, opcionalmente com pasta personalizada para a pessoa"""
     if nome_pessoa:
-        # Criar pasta personalizada no desktop
-        desktop_path = os.path.expanduser("~/Desktop")
+        # Verificar se estamos no Docker e usar desktop mapeado
+        docker_desktop_path = "/app/desktop"
+        if os.path.exists(docker_desktop_path):
+            desktop_path = docker_desktop_path
+            if logger:
+                logger.log(f"🐳 Usando desktop mapeado do Docker: {desktop_path}", "info")
+        else:
+            # Usar função auxiliar para detectar desktop (fallback)
+            desktop_path = get_desktop_path()
+            
+            # Se o desktop não foi encontrado, logar aviso
+            if desktop_path == os.getcwd():
+                if logger:
+                    logger.log(f"⚠️ Desktop não encontrado, usando diretório atual: {desktop_path}", "warning")
+        
         nome_limpo = "".join(c for c in nome_pessoa if c.isalnum() or c in (' ', '-', '_')).rstrip()
         pasta_pessoa = os.path.join(desktop_path, nome_limpo)
         

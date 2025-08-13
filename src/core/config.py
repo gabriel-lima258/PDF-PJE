@@ -23,6 +23,6 @@ CHROME_OPTIONS = {
 }
 
 # Timeouts
-DOWNLOAD_TIMEOUT = 80   # segundos por download individual
+DOWNLOAD_TIMEOUT = 140   # segundos por download individual
 WEBDRIVER_WAIT = 10    # segundos 
 
