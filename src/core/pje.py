@@ -110,7 +110,7 @@ def iniciar_driver(download_dir=None, logger=None):
         logger.update_status("navegador", 5)
     
     chrome_options = webdriver.ChromeOptions()
-    chrome_options.add_argument("--headless=new")
+    # chrome_options.add_argument("--headless=new")
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
     chrome_options.add_argument("--disable-gpu")
@@ -167,14 +167,19 @@ def login(driver, logger=None):
     wait = WebDriverWait(driver, WEBDRIVER_WAIT)
 
     try:
-        wait.until(EC.presence_of_element_located((By.ID, "botaoRedirecionarSSO"))).click()
-        if logger:
-            logger.log("✅ Botão SSO clicado", "success")
+        # wait.until(EC.presence_of_element_located((By.ID, "botaoRedirecionarSSO"))).click()
+        # if logger:
+        #     logger.log("✅ Botão SSO clicado", "success")
+
+        driver.switch_to.frame(driver.find_element(By.ID, "ssoFrame"))
+     
 
         wait.until(EC.presence_of_element_located((By.ID, "username"))).send_keys(PJE_USER)
         sleep(3)
         wait.until(EC.presence_of_element_located((By.ID, "password"))).send_keys(PJE_PASSWORD)
         wait.until(EC.element_to_be_clickable((By.ID, "kc-login"))).click()
+
+        driver.switch_to.default_content()
 
         sleep(3)
         
