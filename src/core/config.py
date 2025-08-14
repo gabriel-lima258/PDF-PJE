@@ -4,8 +4,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Configurações do PJE
-PJE_USER = os.getenv('USERNAME_PJE')
-PJE_PASSWORD = os.getenv('PASSWORD')
+PJE_USER = os.getenv("USERNAME_PJE")
+PJE_PASSWORD = os.getenv("PASSWORD")
 
 # Configurações de download
 DOWNLOAD_DIR = os.path.join(os.getcwd(), "downloads")
@@ -23,6 +23,6 @@ CHROME_OPTIONS = {
 }
 
 # Timeouts
-DOWNLOAD_TIMEOUT = 140   # segundos por download individual
-WEBDRIVER_WAIT = 10    # segundos 
+DOWNLOAD_TIMEOUT = 140  # segundos
+WEBDRIVER_WAIT = 10   # segundos 
 

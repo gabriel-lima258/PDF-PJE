@@ -1,73 +1,90 @@
 # 🔍 Scraper PJE - Consulta de Processos
 
-Programa que automatiza a busca de processos de "Cumprimento de Sentença" no PJE (Processo Judicial Eletrônico) por CPF.
+Programa Python que automatiza a busca de processos de "Cumprimento de Sentença" no PJE (Processo Judicial Eletrônico) por CPF.
 
-## 🚀 Como Usar
+## 🚀 Interface Web
 
-### 1. **Pré-requisitos**
-- Docker Desktop instalado
-- Python 3.7+ (para detecção de desktop)
-- Credenciais do PJE
-
-### 2. **Configurar Credenciais**
-Crie um arquivo `.env` na raiz do projeto:
-```env
-USERNAME_PJE=seu_usuario_real
-PASSWORD=sua_senha_real
-```
-
-### 3. **Configurar Desktop (Primeira vez)**
+### 🖥️ Launcher Desktop (Mais Fácil!)
 ```bash
-# Detectar desktop automaticamente
-python detect-desktop.py
-```
+# Criar atalho na área de trabalho
+./src/launcher/create_desktop_shortcut.sh
 
-### 4. **Executar**
+# Depois é só dar duplo clique no arquivo na área de trabalho!
+```
+- ✅ **Execução com um clique** - Duplo clique na área de trabalho
+- ✅ **Navegador automático** - Abre automaticamente
+- ✅ **Instalação automática** - Dependências instaladas automaticamente
+- ✅ **Interface colorida** - Feedback visual do progresso
+- ✅ **Tratamento de erros** - Mensagens claras
+
+### 🌐 Interface Web (Manual)
 ```bash
-docker-compose up --build
+./run_web.sh
+# Acesse: http://localhost:5001
+```
+- Interface web moderna com Bootstrap
+- Responsivo (mobile-friendly)
+- Histórico de consultas
+- Acessível remotamente
+- Validação de CPF em tempo real
+- **🆕 Campo de nome** - Cria pasta personalizada no Desktop
+- **🆕 Organização automática** - PDFs separados por pessoa
+
+## ⚙️ Configuração
+
+1. **Configure suas credenciais** no `src/core/config.py`:
+```python
+PJE_USER = "seu_usuario"
+PJE_PASSWORD = "sua_senha"
 ```
 
-### 5. **Acessar**
-Abra o navegador e acesse: **http://localhost:5001**
+## 🆕 Nova Funcionalidade: Nome e Organização
 
-## 📁 Downloads no Desktop
+A aplicação agora inclui um campo para o nome da pessoa, criando automaticamente uma pasta personalizada no Desktop para organizar os downloads:
 
-Os PDFs são salvos **diretamente no seu desktop** em pastas organizadas por pessoa:
+- **Campo Nome**: Obrigatório, nome completo da pessoa
+- **Pasta Personalizada**: Criada em `~/Desktop/[Nome da Pessoa]`
+- **Organização Automática**: PDFs separados por pessoa
+- **Interface Melhorada**: Validação de ambos os campos
 
-```
-Desktop/
-├── João Silva/          # Pasta criada automaticamente
-│   ├── processo1.pdf
-│   └── processo2.pdf
-├── Maria Santos/        # Outra pessoa
-│   └── processo3.pdf
-└── ...
-```
-
-## ⚙️ Como Funciona
-
-1. **Digite o nome e CPF** na interface web
-2. **Clique em "Consultar"**
-3. **Aguarde** o processo automático
-4. **Encontre os PDFs** na pasta criada no seu desktop
-
-## 📁 Estrutura do Projeto
+## 📁 Estrutura Organizada
 
 ```
 PDF-PJE/
-├── docker-compose.yml      # Configuração Docker
-├── Dockerfile              # Imagem Docker
-├── requirements.txt        # Dependências Python
-├── .env                    # Suas credenciais (criar)
-├── src/                    # Código fonte
-└── downloads/              # Fallback de downloads
+├── start.py                     # Script principal
+├── run_web.sh                   # Script de execução
+├── requirements.txt             # Dependências Python
+├── src/
+│   ├── core/                    # Lógica principal
+│   │   ├── pje.py              # Scraper PJE
+│   │   └── config.py           # Configurações
+│   ├── web/                     # Interface web
+│   │   ├── web_app.py          # Aplicação Flask
+│   │   ├── templates/          # Templates HTML
+│   │   └── static/             # Arquivos CSS/JS
+│   └── launcher/                # Scripts desktop
+│       ├── launch_pje_web.command
+│       └── create_desktop_shortcut.sh
+├── docs/                        # Documentação
+│   ├── README.md               # Documentação principal
+│   ├── LAUNCHER_README.md      # Instruções do launcher
+│   └── ESTRUTURA_WEB.md        # Estrutura do projeto
+├── downloads/                   # PDFs baixados
+└── venv/                        # Ambiente virtual
 ```
 
-## ⚠️ Importante
+## 📋 Pré-requisitos
+
+- Python 3.7+
+- Google Chrome
+- Conexão com internet
+- Credenciais do PJE
+
+## ⚠️ Avisos
 
 - Use de forma ética e responsável
 - Respeite os termos do PJE
-- Mantenha suas credenciais seguras
+- Mantenha credenciais seguras
 - Evite muitas consultas em sequência
 
 ---
